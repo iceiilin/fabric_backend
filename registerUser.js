@@ -7,31 +7,33 @@
 /*
  * Register and Enroll a user
  */
+var exports = module.exports = {};
 
-// system arguments
-var arg = process.argv.splice(2);
-var userName = arg[0]
-var write_permission = arg[1]
+exports.registerUser = function(name, permission) {
+  // system arguments
+  var arg = process.argv.splice(2);
+  var userName = name || arg[0]
+  var write_permission = permission || arg[1]
 
 
-var Fabric_Client = require('fabric-client');
-var Fabric_CA_Client = require('fabric-ca-client');
+  var Fabric_Client = require('fabric-client');
+  var Fabric_CA_Client = require('fabric-ca-client');
 
-var path = require('path');
-var util = require('util');
-var os = require('os');
+  var path = require('path');
+  var util = require('util');
+  var os = require('os');
 
-//
-var fabric_client = new Fabric_Client();
-var fabric_ca_client = null;
-var admin_user = null;
-var member_user = null;
-var store_path = path.join(__dirname, 'hfc-key-store');
-console.log(' Store path:'+store_path);
+  //
+  var fabric_client = new Fabric_Client();
+  var fabric_ca_client = null;
+  var admin_user = null;
+  var member_user = null;
+  var store_path = path.join(__dirname, 'hfc-key-store');
+  console.log(' Store path:'+store_path);
 
-// create the key value store as defined in the fabric-client/config/default.json 'key-value-store' setting
-Fabric_Client.newDefaultKeyValueStore({ path: store_path
-}).then((state_store) => {
+  // create the key value store as defined in the fabric-client/config/default.json 'key-value-store' setting
+  return Fabric_Client.newDefaultKeyValueStore({ path: store_path
+  }).then((state_store) => {
     // assign the store to the fabric client
     fabric_client.setStateStore(state_store);
     var crypto_suite = Fabric_Client.newCryptoSuite();
@@ -41,58 +43,59 @@ Fabric_Client.newDefaultKeyValueStore({ path: store_path
     crypto_suite.setCryptoKeyStore(crypto_store);
     fabric_client.setCryptoSuite(crypto_suite);
     var	tlsOptions = {
-    	trustedRoots: [],
-    	verify: false
+      trustedRoots: [],
+      verify: false
     };
     // be sure to change the http to https when the CA is running TLS enabled
-    fabric_ca_client = new Fabric_CA_Client('http://40.121.11.14:2049', null , '', crypto_suite);
+    fabric_ca_client = new Fabric_CA_Client('http://10.32.105.215:2049', null , '', crypto_suite);
 
     // first check to see if the admin is already enrolled
     return fabric_client.getUserContext('admin', true);
-}).then((user_from_store) => {
+  }).then((user_from_store) => {
     if (user_from_store && user_from_store.isEnrolled()) {
-        console.log('Successfully loaded admin from persistence');
-        admin_user = user_from_store;
+      console.log('Successfully loaded admin from persistence');
+      admin_user = user_from_store;
     } else {
-        throw new Error('Failed to get admin.... run enrollAdmin.js');
+      throw new Error('Failed to get admin.... run enrollAdmin.js');
     }
 
     // at this point we should have the admin user
     // first need to register the user with the CA server
-	// add the attr here
-	var attr = null;
-	if (write_permission == 'write_permission') {
-		attr = {enrollmentID: userName, affiliation: 'org1.department1', attrs: [{name: 'write_policy', value: 'true', ecert: true}]};
-		console.log('The user has write permission.');
-	} else {
-		attr = {enrollmentID: userName, affiliation: 'org1.department1'};
-		console.log('The user does not have write permission.');
-	}
+    // add the attr here
+    var attr = null;
+    if (write_permission == 'write_permission') {
+      attr = {enrollmentID: userName, affiliation: 'org1.department1', attrs: [{name: 'write_policy', value: 'true', ecert: true}]};
+      console.log('The user has write permission.');
+    } else {
+      attr = {enrollmentID: userName, affiliation: 'org1.department1'};
+      console.log('The user does not have write permission.');
+    }
 
     return fabric_ca_client.register(attr, admin_user);
-}).then((secret) => {
+  }).then((secret) => {
     // next we need to enroll the user with CA server
     console.log('Successfully registered ' + userName + ' - secret:'+ secret);
 
     return fabric_ca_client.enroll({enrollmentID: userName, enrollmentSecret: secret});
-}).then((enrollment) => {
-  console.log('Successfully enrolled member user ' + userName);
-  return fabric_client.createUser(
-     {username: userName,
-     mspid: 'Org1MSP',
-     cryptoContent: { privateKeyPEM: enrollment.key.toBytes(), signedCertPEM: enrollment.certificate }
-     });
-}).then((user) => {
-     member_user = user;
+  }).then((enrollment) => {
+    console.log('Successfully enrolled member user ' + userName);
+    return fabric_client.createUser(
+      {username: userName,
+        mspid: 'Org1MSP',
+        cryptoContent: { privateKeyPEM: enrollment.key.toBytes(), signedCertPEM: enrollment.certificate }
+      });
+  }).then((user) => {
+    member_user = user;
 
-     return fabric_client.setUserContext(member_user);
-}).then(()=>{
-     console.log(userName + ' was successfully registered and enrolled and is ready to intreact with the fabric network');
+    return fabric_client.setUserContext(member_user);
+  }).then(()=>{
+    console.log(userName + ' was successfully registered and enrolled and is ready to intreact with the fabric network');
 
-}).catch((err) => {
+  }).catch((err) => {
     console.error('Failed to register: ' + err);
-	if(err.toString().indexOf('Authorization') > -1) {
-		console.error('Authorization failures may be caused by having admin credentials from a previous CA instance.\n' +
-		'Try again after deleting the contents of the store directory '+store_path);
-	}
-});
+    if(err.toString().indexOf('Authorization') > -1) {
+      console.error('Authorization failures may be caused by having admin credentials from a previous CA instance.\n' +
+                    'Try again after deleting the contents of the store directory '+store_path);
+    }
+  });
+}
