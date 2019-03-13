@@ -18,7 +18,9 @@ var intervalTimer = [];
 
 var blockCDRS = [];
 var blockCDRA = [];
-var hashCDRA = {};
+var hashCDRAcpid = {};
+var hashCDRSbid = {};
+var hashCDRAbid = {};
 var height = 3;
 var block = [];
 
@@ -32,11 +34,26 @@ const BASE_INT = 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-//fetchData();
-setInterval(fetchData, BASE_INT);
+fetchData().then(()=>{
+  setInterval(fetchData, BASE_INT);
+});
+
+function isEmpty(obj) {
+    for(var key in obj) {
+        if(obj.hasOwnProperty(key))
+            return false;
+    }
+    return true;
+}
 
 app.get('/cdrs', (req, res) => {
-  res.send({length: blockCDRS.length});
+  if (isEmpty(req.query)) {
+    res.send({length: blockCDRS.length});
+  } else if (req.query.blockId) {
+    res.send(blockCDRS[hashCDRSbid[req.query.blockId]]);
+  } else if (req.query.id) {
+    res.send(blockCDRS[req.query.id]);
+  }
 });
 app.get('/cdrs/all', (req, res) => {
   res.send(blockCDRS);
@@ -46,7 +63,14 @@ app.get('/cdrs/:id', (req, res) => {
 });
 
 app.get('/cdra', (req, res) => {
-  res.send({length: blockCDRA.length});
+  if (isEmpty(req.query)) {
+    res.send({length: blockCDRA.length});
+  } else if (req.query.blockId) {
+    res.send(blockCDRA[hashCDRAbid[req.query.blockId]]);
+  } else if (req.query.id) {
+    res.send(blockCDRA[req.query.id]);
+  }
+
 });
 app.get('/cdra/all', (req, res) => {
   res.send(blockCDRA);
@@ -86,19 +110,27 @@ async function fetchData() {
     for (var i = height; i < Number(new_height); i++) {
       let blk = await query_by_id.query_by_id("tester", i);
       blk.forEach((tx) => {
-        let txv = {value: JSON.parse(tx.value)};
+        let txv = JSON.parse(tx.value);
         txv.blockId = tx.id;
         if (tx.key.includes("CDRA")) {
           blockCDRA.push(txv);
-          hashCDRA[txv.value.copyId] = blockCDRA.length - 1;
+          hashCDRAcpid[txv.copyId] = blockCDRA.length - 1;
+          hashCDRAbid[txv.blockId] = blockCDRA.length - 1;
         } else {
-          if (txv.value.crc_check == false) {
-            txv.cdra = blockCDRA[hashCDRA[txv.value.copyId]];
+          if (txv.crc_check == false) {
+            txv.cdraBlockId = blockCDRA[hashCDRAcpid[txv.copyId]].blockId;
+            txv.cdraCrc = blockCDRA[hashCDRAcpid[txv.copyId]].crc;
+          } else {
+            txv.cdraBlockId = ' ';
+            txv.cdraCrc = ' ';
+            console.log(txv);
           }
           blockCDRS.push(txv);
+          hashCDRSbid[txv.blockId] = blockCDRS.length - 1;
         }
       })
     }
 
     height = new_height;
 }
+
