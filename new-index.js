@@ -22,7 +22,8 @@ var hashCDRAcpid = {};
 var hashCDRSbid = {};
 var hashCDRAbid = {};
 var height = 3;
-var block = [];
+var bidCDRS = 0;
+var bidCDRA = 0;
 
 const app = express();
 const CHG_INT = 4000;
@@ -46,9 +47,11 @@ function isEmpty(obj) {
     return true;
 }
 
+app.use(express.static('../blockchain-dashboard/dist/blockchain-dashboard'));
+
 app.get('/cdrs', (req, res) => {
   if (isEmpty(req.query)) {
-    res.send({length: blockCDRS.length});
+    res.send({length: blockCDRS.length, maxBlockId: bidCDRS});
   } else if (req.query.blockId) {
     res.send(blockCDRS[hashCDRSbid[req.query.blockId]]);
   } else if (req.query.id) {
@@ -64,7 +67,7 @@ app.get('/cdrs/:id', (req, res) => {
 
 app.get('/cdra', (req, res) => {
   if (isEmpty(req.query)) {
-    res.send({length: blockCDRA.length});
+    res.send({length: blockCDRA.length, maxBlockId: bidCDRA});
   } else if (req.query.blockId) {
     res.send(blockCDRA[hashCDRAbid[req.query.blockId]]);
   } else if (req.query.id) {
@@ -90,7 +93,7 @@ app.get('/cdra/:id', (req, res) => {
   //res.send(req.body);
 //});
 
-app.listen(8081, () => console.log('Example app listening on port 8081!'));
+app.listen(8082, () => console.log('Example app listening on port 8082!'));
 
 function generateHash() {
   let hash = crypto.createHmac('sha256', Math.random().toString()).digest('hex');
@@ -116,6 +119,7 @@ async function fetchData() {
           blockCDRA.push(txv);
           hashCDRAcpid[txv.copyId] = blockCDRA.length - 1;
           hashCDRAbid[txv.blockId] = blockCDRA.length - 1;
+          bidCDRA = txv.blockId;
         } else {
           if (txv.crc_check == false) {
             txv.cdraBlockId = blockCDRA[hashCDRAcpid[txv.copyId]].blockId;
@@ -127,6 +131,7 @@ async function fetchData() {
           }
           blockCDRS.push(txv);
           hashCDRSbid[txv.blockId] = blockCDRS.length - 1;
+          bidCDRS = txv.blockId;
         }
       })
     }
